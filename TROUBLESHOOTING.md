@@ -16,7 +16,227 @@ Pastikan semua ini sudah OK sebelum troubleshoot:
 
 ---
 
-## ❌ Problem #1: Tidak Bisa Login dengan Akun Dummy
+## ❌ Problem #1: Error "Kesalahan Server" / 500 Internal Server Error
+
+### Gejala:
+- Muncul error "Kesalahan Server" saat login
+- Error 500 di browser console
+- Backend console menunjukkan error stack trace
+- Login loading lalu muncul error message
+
+### Diagnosis Step-by-Step:
+
+#### Step 1: Check Backend Console
+**Lihat terminal backend**, pasti ada error message. Contoh error umum:
+
+**Error 1: Database Connection Failed**
+```
+Error: connect ECONNREFUSED 127.0.0.1:3306
+atau
+Error: Access denied for user 'root'@'localhost'
+```
+
+**Solusi:**
+```bash
+# Check MySQL running
+mysql.server status
+mysql.server start  # jika stopped
+
+# Test connection
+mysql -u root -p -e "SELECT 1;"
+
+# Fix credentials di backend/.env
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=your_actual_password
+DB_NAME=clinic_queue_db
+DB_PORT=3306
+```
+
+**Error 2: Database Not Found**
+```
+Error: Unknown database 'clinic_queue_db'
+```
+
+**Solusi:**
+```bash
+# Create database
+mysql -u root -p -e "CREATE DATABASE clinic_queue_db;"
+
+# Import schema
+mysql -u root -p clinic_queue_db < backend/database/schema.sql
+```
+
+**Error 3: Table Not Found**
+```
+Error: Table 'clinic_queue_db.users' doesn't exist
+```
+
+**Solusi:**
+```bash
+# Import schema ulang
+mysql -u root -p clinic_queue_db < backend/database/schema.sql
+
+# Verify tables created
+mysql -u root -p clinic_queue_db -e "SHOW TABLES;"
+```
+
+**Error 4: Missing Dependencies**
+```
+Error: Cannot find module 'bcryptjs'
+atau
+Error: Cannot find module 'mysql2'
+```
+
+**Solusi:**
+```bash
+cd backend
+rm -rf node_modules package-lock.json
+npm install
+
+# Restart backend
+npm run dev
+```
+
+---
+
+#### Step 2: Check Backend Environment Variables
+```bash
+# Check .env exist
+ls -la backend/.env
+
+# Check contents (jangan share ini!)
+cat backend/.env
+```
+
+**Isi minimum yang harus ada:**
+```env
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=your_password
+DB_NAME=clinic_queue_db
+DB_PORT=3306
+
+JWT_SECRET=your_secret_key_here_change_in_production
+PORT=5000
+```
+
+**Jika .env tidak ada:**
+```bash
+cd backend
+cp .env.example .env
+# Edit dengan text editor, isi password MySQL
+```
+
+---
+
+#### Step 3: Test Database Connection
+```bash
+cd backend
+
+# Create test script
+cat > test-db.js << 'EOF'
+import mysql from 'mysql2/promise';
+import dotenv from 'dotenv';
+dotenv.config();
+
+async function testDB() {
+  try {
+    const connection = await mysql.createConnection({
+      host: process.env.DB_HOST || 'localhost',
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+      database: process.env.DB_NAME || 'clinic_queue_db',
+      port: process.env.DB_PORT || 3306
+    });
+    
+    console.log('✅ Database connection SUCCESS');
+    
+    const [tables] = await connection.query('SHOW TABLES');
+    console.log('✅ Tables found:', tables.length);
+    
+    const [users] = await connection.query('SELECT COUNT(*) as count FROM users');
+    console.log('✅ Users count:', users[0].count);
+    
+    await connection.end();
+  } catch (error) {
+    console.error('❌ Database connection FAILED:', error.message);
+  }
+}
+
+testDB();
+EOF
+
+# Run test
+node test-db.js
+```
+
+---
+
+#### Step 4: Enable Debug Mode
+Edit `backend/server.js`, tambahkan setelah imports:
+
+```javascript
+// Add this for debugging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// Better error handling
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).json({ 
+    message: 'Terjadi kesalahan server',
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+  });
+});
+```
+
+Restart backend dan coba login lagi, lihat console output.
+
+---
+
+### 🚀 Quick Fix untuk Error Server:
+
+```bash
+# 1. Stop backend (Ctrl+C)
+
+# 2. Check MySQL running
+mysql.server status || mysql.server start
+
+# 3. Recreate database
+mysql -u root -p << EOF
+DROP DATABASE IF EXISTS clinic_queue_db;
+CREATE DATABASE clinic_queue_db;
+EOF
+
+# 4. Import schema
+mysql -u root -p clinic_queue_db < backend/database/schema.sql
+
+# 5. Verify
+mysql -u root -p clinic_queue_db -e "SELECT COUNT(*) FROM users;"
+# Output harus: 3
+
+# 6. Check .env
+cat backend/.env
+# Pastikan DB_PASSWORD benar
+
+# 7. Reinstall dependencies
+cd backend
+rm -rf node_modules
+npm install
+
+# 8. Start backend dengan logging
+DEBUG=* npm run dev
+
+# 9. Test di terminal lain
+curl http://localhost:5000/health
+```
+
+---
+
+## ❌ Problem #2: Tidak Bisa Login dengan Akun Dummy
 
 ### Gejala:
 - Login dengan `admin@clinic.com` / `admin123` gagal
@@ -176,7 +396,7 @@ npm run dev
 
 ---
 
-## ❌ Problem #2: "Failed to Fetch" / Network Error
+## ❌ Problem #3: "Failed to Fetch" / Network Error
 
 ### Gejala:
 - Error di browser console: "Failed to fetch"
@@ -213,7 +433,7 @@ app.use(cors());
 
 ---
 
-## ❌ Problem #3: Port 5000 Already in Use
+## ❌ Problem #4: Port 5000 Already in Use
 
 ### Gejala:
 ```
@@ -245,7 +465,7 @@ cd backend && npm run dev
 
 ---
 
-## ❌ Problem #4: MySQL Connection Error
+## ❌ Problem #5: MySQL Connection Error
 
 ### Gejala:
 ```
@@ -301,7 +521,7 @@ FLUSH PRIVILEGES;
 
 ---
 
-## ❌ Problem #5: Frontend Tidak Tampil Data
+## ❌ Problem #6: Frontend Tidak Tampil Data
 
 ### Gejala:
 - Login berhasil

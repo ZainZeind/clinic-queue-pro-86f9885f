@@ -395,9 +395,45 @@ Authorization: Bearer <token>
 
 ## 🔧 Troubleshooting
 
+### ❌ Error "Kesalahan Server" (500 Internal Server Error)
+
+**Gejala:** Muncul error "Kesalahan Server" saat login atau error 500 di console
+
+**Quick Diagnosis:**
+```bash
+# Jalankan script diagnose otomatis
+cd backend
+node scripts/diagnose.js
+
+# Script akan check:
+# ✅ .env file
+# ✅ MySQL connection
+# ✅ Database exists
+# ✅ Tables created
+# ✅ Users exist
+```
+
+**Quick Fix:**
+```bash
+# 1. Check MySQL running
+mysql.server status || mysql.server start
+
+# 2. Check backend console untuk error message
+# 3. Fix database jika perlu:
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS clinic_queue_db;"
+mysql -u root -p clinic_queue_db < backend/database/schema.sql
+
+# 4. Restart backend
+cd backend && npm run dev
+```
+
+**📖 Troubleshooting lengkap:** Lihat [TROUBLESHOOTING.md](TROUBLESHOOTING.md#-problem-1-error-kesalahan-server--500-internal-server-error)
+
+---
+
 ### ❌ Tidak Bisa Login dengan Akun Dummy
 
-**Gejala:** Login dengan `admin@clinic.com` / `admin123` (atau akun dummy lainnya) gagal dengan error "Email atau password salah"
+**Gejala:** Login dengan `admin@clinic.com` / `admin123` gagal dengan error "Email atau password salah"
 
 **Penyebab & Solusi:**
 
