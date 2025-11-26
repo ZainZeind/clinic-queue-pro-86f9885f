@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, Clock, Users, Shield } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import doctorImage from "@/assets/dokter.png";
 
 const HeroSection = () => {
   const navigate = useNavigate();
@@ -156,13 +157,15 @@ const HeroSection = () => {
               className="relative"
             >
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/20 to-teal-500/20 blur-3xl rounded-3xl" />
-              <div className="relative rounded-3xl shadow-elevated border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 h-96 flex items-center justify-center backdrop-blur-sm">
-                <div className="text-center space-y-4">
-                  <div className="w-24 h-24 mx-auto bg-gradient-to-br from-emerald-500 to-teal-500 rounded-2xl flex items-center justify-center shadow-lg">
-                    <Users className="w-12 h-12 text-white" />
-                  </div>
-                  <p className="text-xl font-semibold">Klinik Sehat</p>
-                  <p className="text-muted-foreground">Sistem Antrian Digital</p>
+              <div className="relative rounded-3xl shadow-elevated border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-teal-500/10 h-96 overflow-hidden backdrop-blur-sm">
+                <img 
+                  src={doctorImage} 
+                  alt="Dokter Klinik Sehat" 
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-6 text-center text-white">
+                  <p className="text-xl font-bold">Klinik Sehat</p>
+                  <p className="text-sm opacity-90">Sistem Antrian Digital</p>
                 </div>
               </div>
               
