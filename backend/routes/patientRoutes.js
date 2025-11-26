@@ -8,7 +8,8 @@ import {
   createConsultation,
   getMyConsultations,
   sendConsultationMessage,
-  getConsultationMessages
+  getConsultationMessages,
+  getAvailableTimeSlots
 } from '../controllers/patientController.js';
 import { authenticateToken, authorizeRole } from '../middleware/auth.js';
 
@@ -20,6 +21,7 @@ router.use(authenticateToken);
 // Appointments
 router.get('/doctors', getDoctors);
 router.get('/doctors/:doctor_id/schedules', getDoctorSchedules);
+router.get('/doctors/:doctor_id/timeslots', getAvailableTimeSlots);
 router.post('/appointments', authorizeRole('pasien', 'admin'), createAppointment);
 router.get('/appointments', getMyAppointments);
 router.get('/queue/:appointment_id', getQueueStatus);

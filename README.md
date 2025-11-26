@@ -1,41 +1,53 @@
-# 🏥 Klinik Sehat - Sistem Manajemen Klinik
+# Klinik Sehat - Sistem Informasi Klinik
 
-Aplikasi web untuk manajemen klinik dengan fitur antrian digital, rekam medis, dan konsultasi online.
+Aplikasi web untuk manajemen klinik kesehatan dengan fitur pendaftaran online, antrian pasien, konsultasi online, dan rekam medis.
 
----
+## 🚀 Fitur Utama
 
-## 📋 Fitur Utama
-
-### 👨‍💼 Admin
+### Admin
 - Dashboard statistik klinik
-- Manajemen antrian pasien
-- Manajemen user (Admin, Dokter, Pasien)
+- Manajemen antrian pasien real-time
+- Manajemen user (ubah role & hapus user)
 - Database pasien lengkap
+- Broadcast notifikasi ke pasien
 
-### 👨‍⚕️ Dokter
-- Jadwal praktik
-- Daftar pasien hari ini
-- Input rekam medis elektronik
-- Riwayat kunjungan pasien
+### Dokter
+- Dashboard pasien hari ini
+- Manajemen jadwal praktik
+- Rekam medis pasien
+- Konsultasi online dengan pasien
+- Lihat daftar pasien yang terdaftar
 
-### 👤 Pasien
-- Registrasi online (publik)
-- Pendaftaran kunjungan
-- Cek status antrian real-time
-- Notifikasi antrian
+### Pasien
+- Pendaftaran online dengan validasi kapasitas
+- Pilih slot waktu dengan indikator ketersediaan
+- Status antrian real-time
 - Konsultasi online dengan dokter
-- Riwayat rekam medis
+- Riwayat kunjungan dan rekam medis
 
----
+## 🛠️ Tech Stack
 
-## 🛠️ Teknologi
+**Frontend:**
+- React + TypeScript
+- Vite
+- TailwindCSS
+- shadcn/ui
+- React Router
+- Sonner (toast notifications)
 
-**Backend:** Node.js, Express.js, MySQL, JWT  
-**Frontend:** React, TypeScript, Tailwind CSS, Vite
+**Backend:**
+- Node.js + Express
+- MySQL
+- JWT Authentication
+- bcryptjs
 
----
+## 📋 Prerequisites
 
-## 📦 Instalasi
+- Node.js (v16 atau lebih baru)
+- MySQL (v8 atau lebih baru)
+- npm atau yarn
+
+## 🔧 Instalasi
 
 ### 1. Clone Repository
 ```bash
@@ -43,241 +55,175 @@ git clone <repository-url>
 cd klinik-sehat
 ```
 
-### 2. Install Dependencies
+### 2. Setup Backend
+
 ```bash
-# Backend
 cd backend
 npm install
+```
 
-# Frontend
+Buat file `.env` di folder `backend`:
+```env
+PORT=5001
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=your_password
+DB_NAME=klinik_sehat
+JWT_SECRET=your_jwt_secret_key_here
+```
+
+### 3. Setup Database
+
+```bash
+# Login ke MySQL
+mysql -u root -p
+
+# Buat database
+CREATE DATABASE klinik_sehat;
+
+# Import schema (jika ada file SQL)
+mysql -u root -p klinik_sehat < database/schema.sql
+```
+
+### 4. Setup Frontend
+
+```bash
+# Kembali ke root directory
 cd ..
 npm install
 ```
 
-### 3. Setup Database
-```bash
-# Buat database
-mysql -u root -p
-CREATE DATABASE clinic_queue_db;
-EXIT;
-
-# Jalankan migration
-cd backend
-node scripts/apply-new-schema.js
-```
-
-### 4. Konfigurasi Environment
-
-Buat file `.env` di folder `backend/`:
-
+Buat file `.env` di root directory:
 ```env
-# Database
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=
-DB_NAME=clinic_queue_db
-DB_PORT=3308
-
-# JWT Secret
-JWT_SECRET=clinic_queue_secret_key_2024
-
-# Server
-PORT=5001
+VITE_API_URL=http://localhost:5001/api
 ```
-
----
 
 ## 🚀 Menjalankan Aplikasi
 
-### Development
-```bash
-# Terminal 1: Backend
-cd backend
-npm start
+### Development Mode
 
-# Terminal 2: Frontend
+**1. Jalankan Backend**
+```bash
+cd backend
+node server.js
+```
+Backend akan berjalan di `http://localhost:5001`
+
+**2. Jalankan Frontend** (di terminal baru)
+```bash
 npm run dev
 ```
+Frontend akan berjalan di `http://localhost:5173`
 
-**Backend:** `http://localhost:5001`  
-**Frontend:** `http://localhost:5173`
+### Build Production
 
-### Production Build
 ```bash
+# Build frontend
 npm run build
+
+# Preview build
 npm run preview
 ```
 
----
+## 👥 Default User Credentials
 
-## 🔑 Akun Default untuk Testing
+Setelah setup database, Anda dapat login dengan:
 
-### Admin
-| Email | Password |
-|-------|----------|
-| admin@kliniksehat.com | Admin123 |
+**Admin:**
+- Email: admin@klinik.com
+- Password: admin123
 
-### Dokter
-| Email | Password | Nama |
-|-------|----------|------|
-| ahmad.hidayat@kliniksehat.com | Dokter123 | dr. Ahmad Hidayat |
-| siti.nurhaliza@kliniksehat.com | Dokter123 | dr. Siti Nurhaliza |
+**Dokter:**
+- Email: dokter@klinik.com
+- Password: dokter123
 
-### Pasien
-| Email | Password | Nama |
-|-------|----------|------|
-| andi.wijaya@email.com | Pasien123 | Andi Wijaya |
-| dewi.lestari@email.com | Pasien123 | Dewi Lestari |
+**Pasien:**
+- Email: pasien@klinik.com
+- Password: pasien123
 
-⚠️ **Penting:** 
-- Ganti password default setelah login pertama
-- Registrasi publik hanya untuk **Pasien**
-- Admin/Dokter dibuat oleh Admin
+> **Note**: Ganti password default setelah login pertama kali di production.
 
----
+## 📁 Struktur Project
 
-## ✅ Validasi Input
-
-### 📱 Nomor Telepon
-- Hanya angka (0-9)
-- Minimal 10 digit, maksimal 13 digit
-- Contoh: `081234567890`
-
-### 🔐 Password
-- Minimal 8 karakter
-- Harus ada huruf besar (A-Z)
-- Harus ada huruf kecil (a-z)
-- Harus ada angka (0-9)
-- Contoh: `Admin123`
-
-### 🆔 NIK (Pasien)
-- Tepat 16 digit angka
-- Contoh: `3374010101900001`
-
----
-
-## 🗄️ Database
-
-Aplikasi menggunakan **10 tabel** dengan nama dalam Bahasa Indonesia:
-
-1. **admin** - Data admin sistem
-2. **dokter** - Data dokter dan jadwal praktik
-3. **pasien** - Data pasien (NIK sebagai primary key)
-4. **pendaftaran_online** - Pendaftaran kunjungan
-5. **nomor_antrian** - Sistem antrian
-6. **rekam_medis** - Rekam medis elektronik
-7. **riwayat_kunjungan** - History kunjungan pasien
-8. **konsultasi_online** - Chat konsultasi
-9. **notifikasi** - Notifikasi untuk pasien
-10. **dashboard_klinik** - Statistik klinik
-
----
-
-## 🔧 Troubleshooting
-
-### Port Sudah Digunakan
-```bash
-# Cari process
-lsof -i :5001
-
-# Kill process
-kill -9 <PID>
+```
+klinik-sehat/
+├── backend/
+│   ├── config/          # Database configuration
+│   ├── controllers/     # Route controllers
+│   ├── middleware/      # Authentication & authorization
+│   ├── routes/          # API routes
+│   ├── utils/           # Utility functions
+│   └── server.js        # Entry point
+├── src/
+│   ├── components/      # React components
+│   ├── pages/           # Page components
+│   │   ├── admin/       # Admin pages
+│   │   ├── doctor/      # Doctor pages
+│   │   └── patient/     # Patient pages
+│   ├── contexts/        # React contexts
+│   ├── lib/             # API client & utilities
+│   └── App.tsx          # Main app component
+└── public/              # Static assets
 ```
 
-### MySQL Connection Error
-```bash
-# Start MySQL
-mysql.server start
-# atau
-brew services start mysql
-
-# Cek port di .env (default: 3308)
-```
-
-### Login Tidak Bisa
-```bash
-# Reset password
-cd backend
-node scripts/fix-passwords.js
-```
-
-### Database Error
-```bash
-# Drop dan buat ulang
-mysql -u root -p
-DROP DATABASE clinic_queue_db;
-CREATE DATABASE clinic_queue_db;
-EXIT;
-
-# Jalankan migration lagi
-cd backend
-node scripts/apply-new-schema.js
-```
-
----
-
-## 📡 API Endpoints (Ringkasan)
+## 🔐 API Endpoints
 
 ### Authentication
-- `POST /api/auth/register` - Registrasi pasien baru
-- `POST /api/auth/login` - Login (semua role)
-- `GET /api/auth/profile` - Get profile
-- `GET /api/auth/notifications` - Get notifikasi
+- `POST /api/auth/register` - Registrasi user baru
+- `POST /api/auth/login` - Login
+- `GET /api/auth/profile` - Get user profile
+
+### Patient
+- `GET /api/patient/doctors` - Daftar dokter
+- `GET /api/patient/doctors/:id/timeslots` - Slot waktu tersedia
+- `POST /api/patient/appointments` - Buat pendaftaran
+- `GET /api/patient/appointments` - Riwayat pendaftaran
+- `GET /api/patient/queue/:id` - Status antrian
+
+### Doctor
+- `GET /api/doctor/schedules` - Jadwal praktik
+- `POST /api/doctor/schedules` - Update jadwal
+- `GET /api/doctor/today-patients` - Pasien hari ini
+- `GET /api/doctor/consultations` - Daftar konsultasi
+- `POST /api/doctor/medical-records` - Buat rekam medis
 
 ### Admin
 - `GET /api/admin/queue/today` - Antrian hari ini
 - `POST /api/admin/queue/call` - Panggil antrian
-- `GET /api/admin/users` - Get semua user
-- `POST /api/admin/users` - Buat user baru
+- `POST /api/admin/queue/complete` - Selesaikan antrian
+- `GET /api/admin/users` - Daftar user
+- `PUT /api/admin/users/:id` - Update user
+- `DELETE /api/admin/users/:id` - Hapus user
 
-### Dokter
-- `GET /api/doctor/schedules` - Get jadwal praktik
-- `POST /api/doctor/medical-records` - Buat rekam medis
-- `GET /api/doctor/patients/today` - Pasien hari ini
+## 📝 Fitur Validasi
 
-### Pasien
-- `GET /api/patient/doctors` - List dokter
-- `POST /api/patient/appointments` - Daftar kunjungan
-- `GET /api/patient/queue/:id` - Cek status antrian
-- `POST /api/patient/consultations` - Konsultasi online
+### Kapasitas Antrian
+- Maximum 20 pasien per slot waktu (1 jam)
+- Real-time indicator ketersediaan slot:
+  - 🟢 Hijau: Banyak tersedia (>5 slot)
+  - 🟡 Kuning: Hampir penuh (≤5 slot)
+  - 🔴 Merah: Penuh (tidak bisa booking)
 
----
+### Jadwal Praktik
+- Validasi hari dan waktu praktik dokter
+- Pasien hanya bisa booking sesuai jadwal dokter
 
-## 🎯 Status Project
+## 🤝 Contributing
 
-✅ Core Features Complete  
-✅ Authentication & Authorization  
-✅ Queue Management System  
-✅ Medical Records  
-✅ Online Consultation  
-✅ Real-time Notifications  
-✅ Responsive UI  
-
-**Project is Ready for Production!** 🚀
-
----
-
-## 📚 Dokumentasi Tambahan
-
-Untuk dokumentasi lengkap, lihat folder docs:
-- `DATABASE_MIGRATION_SUMMARY.md`
-- `PHONE_VALIDATION.md`
-- `PASSWORD_REQUIREMENTS.md`
-- `MESSAGES_UPDATE.md`
-- `CLEANUP_SUMMARY.md`
-
----
-
-## 📞 Support
-
-Jika ada pertanyaan atau issues, silakan buat [GitHub Issue](../../issues).
-
----
+1. Fork repository
+2. Buat branch baru (`git checkout -b feature/AmazingFeature`)
+3. Commit changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push ke branch (`git push origin feature/AmazingFeature`)
+5. Buat Pull Request
 
 ## 📄 License
 
-MIT License
+This project is licensed under the MIT License.
+
+## 📧 Contact
+
+Untuk pertanyaan atau dukungan, hubungi: support@kliniksehat.com
 
 ---
 
-**Developed with ❤️ for Klinik Sehat**
+Made with ❤️ for better healthcare management

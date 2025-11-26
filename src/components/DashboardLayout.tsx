@@ -78,6 +78,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         { icon: Calendar, label: 'Jadwal Praktik', path: '/dashboard/doctor/schedule' },
         { icon: FileText, label: 'Rekam Medis', path: '/dashboard/doctor/medical-records' },
         { icon: Users, label: 'Pasien Hari Ini', path: '/dashboard/doctor/patients' },
+        { icon: MessageSquare, label: 'Konsultasi Online', path: '/dashboard/doctor/consultations' },
       ];
     } else {
       return [

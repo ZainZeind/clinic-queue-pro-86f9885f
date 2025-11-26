@@ -18,9 +18,20 @@ export default function TodayPatients() {
 
   const loadTodayPatients = async () => {
     try {
+      console.log('🔍 [Doctor Frontend] Loading today patients...');
       const response = await api.getTodayPatients();
+      console.log('📦 [Doctor Frontend] Patients response:', response);
+      console.log('📊 [Doctor Frontend] Patients data:', response.patients);
       setPatients(response.patients || []);
+      
+      if (response.patients && response.patients.length > 0) {
+        console.log('✅ [Doctor Frontend] Found', response.patients.length, 'patients');
+        console.log('📝 [Doctor Frontend] First patient:', response.patients[0]);
+      } else {
+        console.log('⚠️ [Doctor Frontend] No patients found');
+      }
     } catch (error: any) {
+      console.error('❌ [Doctor Frontend] Load patients error:', error);
       toast.error('Gagal memuat data pasien');
     } finally {
       setLoading(false);

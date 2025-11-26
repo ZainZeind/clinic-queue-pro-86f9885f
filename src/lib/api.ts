@@ -130,6 +130,22 @@ class ApiService {
     return this.request('/doctor/today-patients');
   }
 
+  // Doctor - Consultations
+  async getDoctorConsultations() {
+    return this.request('/doctor/consultations');
+  }
+
+  async getDoctorConsultationMessages(patientId: string) {
+    return this.request(`/doctor/consultations/${patientId}/messages`);
+  }
+
+  async sendDoctorConsultationMessage(patientId: string, message: string) {
+    return this.request('/doctor/consultations/messages', {
+      method: 'POST',
+      body: JSON.stringify({ patient_id: patientId, message }),
+    });
+  }
+
   // Patient - Appointments
   async getDoctors() {
     return this.request('/patient/doctors');
@@ -137,6 +153,10 @@ class ApiService {
 
   async getDoctorSchedulesByDoctor(doctorId: number) {
     return this.request(`/patient/doctors/${doctorId}/schedules`);
+  }
+
+  async getAvailableTimeSlots(doctorId: number, date: string) {
+    return this.request(`/patient/doctors/${doctorId}/timeslots?date=${date}`);
   }
 
   async createAppointment(appointmentData: any) {
@@ -166,10 +186,10 @@ class ApiService {
     return this.request('/patient/consultations');
   }
 
-  async sendConsultationMessage(consultationId: number, message: string) {
+  async sendConsultationMessage(doctorId: number, message: string) {
     return this.request('/patient/consultations/messages', {
       method: 'POST',
-      body: JSON.stringify({ consultation_id: consultationId, message }),
+      body: JSON.stringify({ doctor_id: doctorId, message }),
     });
   }
 
@@ -223,8 +243,8 @@ class ApiService {
     });
   }
 
-  async deleteUser(id: number) {
-    return this.request(`/admin/users/${id}`, {
+  async deleteUser(id: number, role: string) {
+    return this.request(`/admin/users/${id}?role=${role}`, {
       method: 'DELETE',
     });
   }

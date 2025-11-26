@@ -46,13 +46,23 @@ export default function Schedule() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (editingSchedule) {
-        await api.updateSchedule(editingSchedule.id, formData);
-        toast.success('Jadwal berhasil diperbarui');
-      } else {
-        await api.createSchedule(formData);
-        toast.success('Jadwal berhasil ditambahkan');
-      }
+      // Build schedules object from current state + new data
+      const currentSchedules: any = {};
+      schedules.forEach(s => {
+        if (editingSchedule && s.day_of_week === editingSchedule.day_of_week) {
+          // Skip the one being edited
+          return;
+        }
+        const timeStr = s.start_time && s.end_time ? `${s.start_time}-${s.end_time}` : s.time;
+        currentSchedules[s.day_of_week.toLowerCase()] = timeStr;
+      });
+      
+      // Add new/edited schedule
+      const timeStr = `${formData.start_time}-${formData.end_time}`;
+      currentSchedules[formData.day_of_week.toLowerCase()] = timeStr;
+      
+      await api.createSchedule({ schedules: currentSchedules });
+      toast.success('Jadwal berhasil diperbarui');
       setDialogOpen(false);
       resetForm();
       loadSchedules();
@@ -63,22 +73,33 @@ export default function Schedule() {
 
   const handleEdit = (schedule: any) => {
     setEditingSchedule(schedule);
+    // Parse time from "08:00-14:00" format
+    const times = schedule.time ? schedule.time.split('-') : ['', ''];
     setFormData({
       day_of_week: schedule.day_of_week,
-      start_time: schedule.start_time,
-      end_time: schedule.end_time,
-      max_patients: schedule.max_patients,
+      start_time: times[0] || schedule.start_time || '',
+      end_time: times[1] || schedule.end_time || '',
+      max_patients: schedule.max_patients || 20,
       notes: schedule.notes || '',
-      is_active: schedule.is_active,
+      is_active: schedule.is_active !== false,
     });
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (schedule: any) => {
     if (!confirm('Yakin ingin menghapus jadwal ini?')) return;
 
     try {
-      await api.deleteSchedule(id);
+      // Build schedules object without the deleted day
+      const currentSchedules: any = {};
+      schedules.forEach(s => {
+        if (s.day_of_week !== schedule.day_of_week) {
+          const timeStr = s.start_time && s.end_time ? `${s.start_time}-${s.end_time}` : s.time;
+          currentSchedules[s.day_of_week.toLowerCase()] = timeStr;
+        }
+      });
+      
+      await api.createSchedule({ schedules: currentSchedules });
       toast.success('Jadwal berhasil dihapus');
       loadSchedules();
     } catch (error: any) {

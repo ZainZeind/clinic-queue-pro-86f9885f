@@ -16,9 +16,20 @@ export default function QueueManagement() {
 
   const loadQueue = async () => {
     try {
+      console.log('🔍 Loading queue...');
       const response = await api.getTodayQueue();
+      console.log('📦 Queue response:', response);
+      console.log('📊 Queue data:', response.queue);
       setQueue(response.queue || []);
+      
+      if (response.queue && response.queue.length > 0) {
+        console.log('✅ Found', response.queue.length, 'queue items');
+        console.log('📝 First queue item:', response.queue[0]);
+      } else {
+        console.log('⚠️ No queue items found');
+      }
     } catch (error: any) {
+      console.error('❌ Load queue error:', error);
       toast.error(error.message || 'Gagal memuat antrian');
     } finally {
       setLoading(false);
@@ -65,9 +76,19 @@ export default function QueueManagement() {
     );
   }
 
-  const waitingQueue = queue.filter((q) => q.status === 'waiting');
+  console.log('🔄 Filtering queue. Total items:', queue.length);
+  const waitingQueue = queue.filter((q) => {
+    console.log('Checking queue item:', q.queue_number, 'status:', q.status);
+    return q.status === 'waiting';
+  });
   const inProgressQueue = queue.filter((q) => q.status === 'in_progress');
   const completedQueue = queue.filter((q) => q.status === 'completed');
+  
+  console.log('📊 Queue breakdown:', {
+    waiting: waitingQueue.length,
+    inProgress: inProgressQueue.length,
+    completed: completedQueue.length
+  });
 
   return (
     <DashboardLayout>

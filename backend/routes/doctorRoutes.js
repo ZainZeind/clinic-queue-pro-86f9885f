@@ -7,7 +7,10 @@ import {
   createMedicalRecord,
   getMedicalRecords,
   updateMedicalRecord,
-  getTodayPatients
+  getTodayPatients,
+  getDoctorConsultations,
+  getDoctorConsultationMessages,
+  sendDoctorConsultationMessage
 } from '../controllers/doctorController.js';
 import { authenticateToken, authorizeRole } from '../middleware/auth.js';
 
@@ -31,5 +34,10 @@ router.put('/medical-records/:id', updateMedicalRecord);
 
 // Today Patients
 router.get('/today-patients', getTodayPatients);
+
+// Consultations
+router.get('/consultations', getDoctorConsultations);
+router.get('/consultations/:patient_id/messages', getDoctorConsultationMessages);
+router.post('/consultations/messages', sendDoctorConsultationMessage);
 
 export default router;

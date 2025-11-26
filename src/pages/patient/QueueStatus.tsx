@@ -20,7 +20,7 @@ export default function QueueStatus() {
     try {
       const response = await api.getMyAppointments();
       const activeAppointments = response.appointments?.filter(
-        (a: any) => a.status === 'confirmed' || a.status === 'pending'
+        (a: any) => a.queue_status && a.queue_status !== 'Selesai' && a.queue_status !== 'Batal'
       ) || [];
       setAppointments(activeAppointments);
 
@@ -45,7 +45,7 @@ export default function QueueStatus() {
     const data = queueData[appointmentId];
     if (!data) return null;
 
-    const myQueueNumber = data.queue?.queue_number;
+    const myQueueNumber = data.queue?.nomor_antrian;
     const currentQueueNumber = data.currentQueueNumber;
 
     if (!myQueueNumber) return null;
@@ -54,8 +54,21 @@ export default function QueueStatus() {
     return position > 0 ? position : 0;
   };
 
+  const normalizeStatus = (status: string) => {
+    if (!status) return 'waiting';
+    const statusMap: any = {
+      'Menunggu': 'waiting',
+      'Dipanggil': 'in_progress',
+      'Sedang Dilayani': 'in_progress',
+      'Selesai': 'completed',
+      'Batal': 'skipped'
+    };
+    return statusMap[status] || 'waiting';
+  };
+
   const getStatusIcon = (status: string) => {
-    switch (status) {
+    const normalizedStatus = normalizeStatus(status);
+    switch (normalizedStatus) {
       case 'waiting':
         return <Clock className="w-8 h-8 text-yellow-500" />;
       case 'in_progress':
@@ -93,14 +106,16 @@ export default function QueueStatus() {
               const queue = queueData[appointment.id]?.queue;
               const currentQueue = queueData[appointment.id]?.currentQueueNumber;
               const position = getQueuePosition(appointment.id);
+              const queueStatus = queue?.status_antrian || appointment.queue_status;
+              const normalizedStatus = normalizeStatus(queueStatus);
 
               return (
                 <Card key={appointment.id} className="overflow-hidden">
                   <div
                     className={`h-2 ${
-                      queue?.status === 'in_progress'
+                      normalizedStatus === 'in_progress'
                         ? 'bg-green-500'
-                        : queue?.status === 'completed'
+                        : normalizedStatus === 'completed'
                         ? 'bg-gray-500'
                         : 'bg-yellow-500'
                     }`}
@@ -108,7 +123,7 @@ export default function QueueStatus() {
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between">
                       <span>Dr. {appointment.doctor_name}</span>
-                      {queue && getStatusIcon(queue.status)}
+                      {queueStatus && getStatusIcon(queueStatus)}
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
@@ -127,7 +142,7 @@ export default function QueueStatus() {
                         <div className="flex items-center space-x-2">
                           <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
                             <span className="text-2xl font-bold text-primary">
-                              {queue?.queue_number || '-'}
+                              {queue?.nomor_antrian || appointment.queue_number || '-'}
                             </span>
                           </div>
                         </div>
@@ -155,16 +170,16 @@ export default function QueueStatus() {
                                 Status Antrian
                               </p>
                               <p className="font-semibold text-lg capitalize">
-                                {queue.status === 'waiting' && 'Menunggu'}
-                                {queue.status === 'in_progress' && 'Giliran Anda!'}
-                                {queue.status === 'completed' && 'Selesai'}
-                                {queue.status === 'skipped' && 'Dilewati'}
+                                {normalizedStatus === 'waiting' && 'Menunggu'}
+                                {normalizedStatus === 'in_progress' && 'Giliran Anda!'}
+                                {normalizedStatus === 'completed' && 'Selesai'}
+                                {normalizedStatus === 'skipped' && 'Dilewati'}
                               </p>
                             </div>
                           </div>
                         </div>
 
-                        {queue.status === 'waiting' && position !== null && (
+                        {normalizedStatus === 'waiting' && position !== null && (
                           <div className="bg-muted p-4 rounded-lg">
                             <p className="text-center">
                               <span className="text-sm text-muted-foreground">
@@ -181,7 +196,7 @@ export default function QueueStatus() {
                           </div>
                         )}
 
-                        {queue.status === 'in_progress' && (
+                        {normalizedStatus === 'in_progress' && (
                           <div className="bg-green-500/10 p-4 rounded-lg border-2 border-green-500">
                             <p className="text-center text-green-600 font-bold text-lg">
                               🔔 Giliran Anda! Silakan menuju ruang praktek dokter
@@ -189,7 +204,7 @@ export default function QueueStatus() {
                           </div>
                         )}
 
-                        {queue.status === 'completed' && (
+                        {normalizedStatus === 'completed' && (
                           <div className="bg-muted p-4 rounded-lg">
                             <p className="text-center text-muted-foreground">
                               Konsultasi Anda telah selesai

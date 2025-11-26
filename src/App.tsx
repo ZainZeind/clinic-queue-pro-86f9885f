@@ -19,6 +19,7 @@ import PatientDatabase from "./pages/admin/PatientDatabase";
 import Schedule from "./pages/doctor/Schedule";
 import MedicalRecords from "./pages/doctor/MedicalRecords";
 import TodayPatients from "./pages/doctor/TodayPatients";
+import DoctorConsultations from "./pages/doctor/Consultations";
 
 import Registration from "./pages/patient/Registration";
 import Consultation from "./pages/patient/Consultation";
@@ -124,6 +125,14 @@ const App = () => (
       element={
         <ProtectedRoute allowedRoles={['dokter', 'admin']}>
           <TodayPatients />
+        </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/dashboard/doctor/consultations"
+      element={
+        <ProtectedRoute allowedRoles={['dokter', 'admin']}>
+          <DoctorConsultations />
         </ProtectedRoute>
       }
     />

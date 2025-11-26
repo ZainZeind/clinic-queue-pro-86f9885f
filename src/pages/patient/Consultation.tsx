@@ -51,7 +51,11 @@ export default function Consultation() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.createConsultation(formData);
+      // Send first message to create consultation
+      await api.sendConsultationMessage(
+        parseInt(formData.doctor_id), 
+        formData.notes || 'Halo Dokter, saya ingin berkonsultasi.'
+      );
       toast.success('Konsultasi berhasil dibuat');
       setDialogOpen(false);
       resetForm();
@@ -64,7 +68,7 @@ export default function Consultation() {
   const handleOpenChat = async (consultation: any) => {
     setSelectedConsultation(consultation);
     try {
-      const response = await api.getConsultationMessages(consultation.id);
+      const response = await api.getConsultationMessages(consultation.doctor_id);
       setMessages(response.messages || []);
       setChatDialogOpen(true);
     } catch (error: any) {
@@ -76,10 +80,11 @@ export default function Consultation() {
     if (!newMessage.trim() || !selectedConsultation) return;
 
     try {
-      await api.sendConsultationMessage(selectedConsultation.id, newMessage);
-      const response = await api.getConsultationMessages(selectedConsultation.id);
+      await api.sendConsultationMessage(selectedConsultation.doctor_id, newMessage);
+      const response = await api.getConsultationMessages(selectedConsultation.doctor_id);
       setMessages(response.messages || []);
       setNewMessage('');
+      toast.success('Pesan terkirim');
     } catch (error: any) {
       toast.error('Gagal mengirim pesan');
     }

@@ -22,16 +22,37 @@ export const getSchedules = async (req, res) => {
     try {
       if (dokter[0].jadwal_praktik) {
         const jadwalObj = JSON.parse(dokter[0].jadwal_praktik);
-        schedules = Object.keys(jadwalObj).map(day => ({
-          day_of_week: day,
-          time: jadwalObj[day]
-        }));
+        // Capitalize day names to match frontend
+        const dayMap = {
+          'senin': 'Senin',
+          'selasa': 'Selasa', 
+          'rabu': 'Rabu',
+          'kamis': 'Kamis',
+          'jumat': 'Jumat',
+          'sabtu': 'Sabtu',
+          'minggu': 'Minggu'
+        };
+        
+        schedules = Object.keys(jadwalObj).map(day => {
+          const capitalizedDay = dayMap[day.toLowerCase()] || day;
+          const [start_time, end_time] = jadwalObj[day].split('-');
+          return {
+            id: `${day}-${jadwalObj[day]}`,
+            day_of_week: capitalizedDay,
+            time: jadwalObj[day],
+            start_time: start_time?.trim() || '',
+            end_time: end_time?.trim() || '',
+            max_patients: 20,
+            is_active: true
+          };
+        });
       }
     } catch (e) {
+      console.error('Parse schedule error:', e);
       schedules = [];
     }
 
-    res.json({ schedules, raw: dokter[0].jadwal_praktik });
+    res.json({ schedules });
   } catch (error) {
     console.error('Get schedules error:', error);
     res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
@@ -226,14 +247,35 @@ export const updateMedicalRecord = async (req, res) => {
 export const getTodayPatients = async (req, res) => {
   try {
     const doctorId = req.user.id;
-    const today = new Date().toISOString().split('T')[0];
+    console.log('🔍 [Doctor] Getting patients for doctor:', doctorId);
+
+    // Debug: Check all queue dates for this doctor
+    const [allQueues] = await pool.query(
+      'SELECT tanggal_antrian, COUNT(*) as count FROM nomor_antrian WHERE id_dokter = ? GROUP BY tanggal_antrian ORDER BY tanggal_antrian DESC LIMIT 5',
+      [doctorId]
+    );
+    console.log('📅 [Doctor] Available queue dates for this doctor:', allQueues);
+
+    // Debug: Check what CURDATE() returns
+    const [dateCheck] = await pool.query('SELECT CURDATE() as today, NOW() as now');
+    console.log('📅 [Doctor] Database current date:', dateCheck[0]);
+
+    // Debug: Check all patients regardless of status
+    const [allPatients] = await pool.query(
+      `SELECT COUNT(*) as total, status_antrian 
+       FROM nomor_antrian 
+       WHERE id_dokter = ? AND DATE(tanggal_antrian) = CURDATE()
+       GROUP BY status_antrian`,
+      [doctorId]
+    );
+    console.log('📊 [Doctor] Patient count by status (today):', allPatients);
 
     const [patients] = await pool.query(
       `SELECT 
-        na.id_antrian,
-        na.nomor_antrian,
+        na.id_antrian as id,
+        na.nomor_antrian as queue_number,
         na.NIK_pasien,
-        na.nama_pasien,
+        na.nama_pasien as full_name,
         na.status_antrian as queue_status,
         na.tanggal_antrian,
         na.waktu_mulai,
@@ -247,14 +289,148 @@ export const getTodayPatients = async (req, res) => {
        FROM nomor_antrian na
        LEFT JOIN pasien p ON na.NIK_pasien = p.NIK_pasien
        LEFT JOIN pendaftaran_online po ON na.id_pendaftaran = po.id_pendaftaran
-       WHERE na.id_dokter = ? AND na.tanggal_antrian = ?
+       WHERE na.id_dokter = ? AND DATE(na.tanggal_antrian) = CURDATE() AND na.status_antrian IN ('Menunggu', 'Dipanggil', 'Sedang Dilayani')
        ORDER BY na.prioritas DESC, na.nomor_antrian ASC`,
-      [doctorId, today]
+      [doctorId]
     );
+
+    console.log('✅ [Doctor] Found', patients.length, 'patients');
+    if (patients.length > 0) {
+      console.log('📝 [Doctor] First patient:', patients[0]);
+    } else {
+      console.log('⚠️ [Doctor] No patients found today.');
+      // Try to get any recent patients
+      const [recentPatients] = await pool.query(
+        `SELECT tanggal_antrian, COUNT(*) as count 
+         FROM nomor_antrian 
+         WHERE id_dokter = ? AND tanggal_antrian >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
+         GROUP BY tanggal_antrian
+         ORDER BY tanggal_antrian DESC`,
+        [doctorId]
+      );
+      console.log('📅 [Doctor] Recent patients (last 3 days):', recentPatients);
+    }
 
     res.json({ patients });
   } catch (error) {
-    console.error('Get today patients error:', error);
+    console.error('❌ [Doctor] Get today patients error:', error);
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
+  }
+};
+
+// ==========================================
+// DOCTOR CONSULTATIONS
+// ==========================================
+
+export const getDoctorConsultations = async (req, res) => {
+  try {
+    const doctorId = req.user.id;
+
+    // Get unique consultations grouped by patient
+    const [consultations] = await pool.query(
+      `SELECT 
+        ko.NIK_pasien as patient_id,
+        ko.nama_pasien as patient_name,
+        MAX(ko.waktu_kirim) as last_message_at,
+        COUNT(*) as message_count,
+        (SELECT teks_pesan FROM konsultasi_online 
+         WHERE id_dokter = ? AND NIK_pasien = ko.NIK_pasien 
+         ORDER BY waktu_kirim DESC LIMIT 1) as last_message,
+        (SELECT COUNT(*) FROM konsultasi_online 
+         WHERE id_dokter = ? AND NIK_pasien = ko.NIK_pasien 
+         AND pengirim = 'Pasien' AND status_pesan != 'Terbaca') as unread_count
+       FROM konsultasi_online ko
+       WHERE ko.id_dokter = ?
+       GROUP BY ko.NIK_pasien, ko.nama_pasien
+       ORDER BY last_message_at DESC`,
+      [doctorId, doctorId, doctorId]
+    );
+
+    res.json({ consultations });
+  } catch (error) {
+    console.error('Get doctor consultations error:', error);
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
+  }
+};
+
+export const getDoctorConsultationMessages = async (req, res) => {
+  try {
+    const { patient_id } = req.params;
+    const doctorId = req.user.id;
+
+    // Get doctor name
+    const [doctor] = await pool.query(
+      'SELECT nama_dokter FROM dokter WHERE id_dokter = ?',
+      [doctorId]
+    );
+
+    // Get patient name
+    const [patient] = await pool.query(
+      'SELECT nama_pasien FROM pasien WHERE NIK_pasien = ?',
+      [patient_id]
+    );
+
+    const doctorName = doctor.length > 0 ? doctor[0].nama_dokter : 'Dokter';
+    const patientName = patient.length > 0 ? patient[0].nama_pasien : 'Pasien';
+
+    const [messages] = await pool.query(
+      `SELECT 
+        id_konsultasi as id,
+        teks_pesan as message,
+        pengirim as sender,
+        IF(pengirim = 'Pasien', ?, ?) as sender_name,
+        status_pesan as status,
+        waktu_kirim as created_at,
+        waktu_dibaca as read_at
+       FROM konsultasi_online
+       WHERE id_dokter = ? AND NIK_pasien = ?
+       ORDER BY waktu_kirim ASC`,
+      [patientName, doctorName, doctorId, patient_id]
+    );
+
+    // Mark patient messages as read
+    await pool.query(
+      `UPDATE konsultasi_online 
+       SET status_pesan = 'Terbaca', waktu_dibaca = NOW() 
+       WHERE id_dokter = ? AND NIK_pasien = ? AND pengirim = 'Pasien' AND status_pesan != 'Terbaca'`,
+      [doctorId, patient_id]
+    );
+
+    res.json({ messages });
+  } catch (error) {
+    console.error('Get consultation messages error:', error);
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
+  }
+};
+
+export const sendDoctorConsultationMessage = async (req, res) => {
+  try {
+    const { patient_id, message } = req.body;
+    const doctorId = req.user.id;
+
+    // Get patient name
+    const [patient] = await pool.query(
+      'SELECT nama_pasien FROM pasien WHERE NIK_pasien = ?',
+      [patient_id]
+    );
+
+    if (patient.length === 0) {
+      return res.status(404).json({ message: 'Data pasien tidak ditemukan' });
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO konsultasi_online 
+       (NIK_pasien, nama_pasien, id_dokter, teks_pesan, status_pesan, pengirim)
+       VALUES (?, ?, ?, ?, 'Terkirim', 'Dokter')`,
+      [patient_id, patient[0].nama_pasien, doctorId, message]
+    );
+
+    res.status(201).json({
+      message: 'Pesan Anda telah dikirim',
+      messageId: result.insertId
+    });
+  } catch (error) {
+    console.error('Send doctor consultation message error:', error);
     res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };

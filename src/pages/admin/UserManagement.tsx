@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 
 export default function UserManagement() {
   console.log('🔍 UserManagement component rendering...');
@@ -22,14 +22,7 @@ export default function UserManagement() {
   const [filterRole, setFilterRole] = useState<string>('all');
 
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
     role: 'pasien',
-    full_name: '',
-    phone: '',
-    address: '',
-    date_of_birth: '',
-    gender: 'L',
   });
 
   useEffect(() => {
@@ -73,11 +66,12 @@ export default function UserManagement() {
     e.preventDefault();
     try {
       if (editingUser) {
-        await api.updateUser(editingUser.id, formData);
-        toast.success('User berhasil diperbarui');
-      } else {
-        await api.createUser(formData);
-        toast.success('User berhasil ditambahkan');
+        await api.updateUser(editingUser.id, { 
+          role: formData.role,
+          email: editingUser.email,
+          full_name: editingUser.full_name 
+        });
+        toast.success('Role user berhasil diperbarui');
       }
       setDialogOpen(false);
       resetForm();
@@ -90,23 +84,16 @@ export default function UserManagement() {
   const handleEdit = (user: any) => {
     setEditingUser(user);
     setFormData({
-      email: user.email,
-      password: '',
       role: user.role,
-      full_name: user.full_name,
-      phone: user.phone || '',
-      address: user.address || '',
-      date_of_birth: user.date_of_birth || '',
-      gender: user.gender || 'L',
     });
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (user: any) => {
     if (!confirm('Yakin ingin menghapus user ini?')) return;
     
     try {
-      await api.deleteUser(id);
+      await api.deleteUser(user.id, user.role);
       toast.success('User berhasil dihapus');
       loadUsers();
     } catch (error: any) {
@@ -117,14 +104,7 @@ export default function UserManagement() {
   const resetForm = () => {
     setEditingUser(null);
     setFormData({
-      email: '',
-      password: '',
       role: 'pasien',
-      full_name: '',
-      phone: '',
-      address: '',
-      date_of_birth: '',
-      gender: 'L',
     });
   };
 
@@ -152,57 +132,25 @@ export default function UserManagement() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-4xl font-bold">Kelola User</h1>
-            <p className="text-muted-foreground">Manajemen user sistem</p>
+            <p className="text-muted-foreground">Ubah role dan hapus user</p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={resetForm}>
-                <Plus className="w-4 h-4 mr-2" />
-                Tambah User
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent>
               <DialogHeader>
-                <DialogTitle>
-                  {editingUser ? 'Edit User' : 'Tambah User Baru'}
-                </DialogTitle>
+                <DialogTitle>Edit Role User</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              {editingUser && (
+                <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      required
-                    />
+                    <Label>Nama User</Label>
+                    <Input value={editingUser.full_name} disabled />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">
-                      Password {editingUser ? '(kosongkan jika tidak diubah)' : '*'}
-                    </Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      required={!editingUser}
-                    />
-                  </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="full_name">Nama Lengkap *</Label>
-                    <Input
-                      id="full_name"
-                      value={formData.full_name}
-                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                      required
-                    />
+                    <Label>Email</Label>
+                    <Input value={editingUser.email} disabled />
                   </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="role">Role *</Label>
                     <Select
@@ -219,62 +167,15 @@ export default function UserManagement() {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Telepon</Label>
-                    <Input
-                      id="phone"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    />
+                  <div className="flex justify-end space-x-2">
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                      Batal
+                    </Button>
+                    <Button type="submit">Update Role</Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="date_of_birth">Tanggal Lahir</Label>
-                    <Input
-                      id="date_of_birth"
-                      type="date"
-                      value={formData.date_of_birth}
-                      onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="gender">Jenis Kelamin</Label>
-                  <Select
-                    value={formData.gender}
-                    onValueChange={(value) => setFormData({ ...formData, gender: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="L">Laki-laki</SelectItem>
-                      <SelectItem value="P">Perempuan</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="address">Alamat</Label>
-                  <Input
-                    id="address"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  />
-                </div>
-
-                <div className="flex justify-end space-x-2">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                    Batal
-                  </Button>
-                  <Button type="submit">
-                    {editingUser ? 'Update' : 'Tambah'}
-                  </Button>
-                </div>
-              </form>
+                </form>
+              )}
             </DialogContent>
           </Dialog>
         </div>
@@ -331,7 +232,7 @@ export default function UserManagement() {
                           <Button
                             size="sm"
                             variant="destructive"
-                            onClick={() => handleDelete(user.id)}
+                            onClick={() => handleDelete(user)}
                           >
                             <Trash2 className="w-4 h-4" />
                           </Button>
@@ -362,17 +263,11 @@ export default function UserManagement() {
                 <h3 className="text-lg font-semibold mb-2">
                   {filterRole !== 'all' ? `Tidak ada user dengan role: ${filterRole}` : 'Belum ada user terdaftar'}
                 </h3>
-                <p className="text-muted-foreground mb-4">
+                <p className="text-muted-foreground">
                   {filterRole !== 'all'
-                    ? 'Coba ganti filter atau tambah user baru dengan role ini' 
-                    : 'Mulai dengan menambahkan user baru ke sistem'}
+                    ? 'Coba ganti filter untuk melihat user dengan role lain' 
+                    : 'User baru dapat mendaftar melalui halaman registrasi'}
                 </p>
-                {filterRole === 'all' && (
-                  <Button onClick={() => setDialogOpen(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Tambah User Pertama
-                  </Button>
-                )}
               </div>
             )}
           </CardContent>
