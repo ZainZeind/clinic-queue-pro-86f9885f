@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Eye, EyeOff, Lock, Mail, User, Phone, Calendar, MapPin, IdCard, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface RegisterFormProps {
   onSubmit: (data: any) => Promise<void>;
@@ -106,7 +107,7 @@ const RegisterForm = ({ onSubmit, loading }: RegisterFormProps) => {
       return;
     }
 
-    if (!checks.length) {
+    if (value.length < 8) {
       setPasswordError("Password minimal 8 karakter");
       return;
     }
