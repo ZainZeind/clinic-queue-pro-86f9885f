@@ -25,7 +25,7 @@ const ContactSection = () => {
     {
       icon: MapPin,
       title: "Alamat",
-      content: "Jl. Kesehatan No. 123, Jakarta Selatan, DKI Jakarta 12345"
+      content: "Gedung Teknik Industri, Universitas Diponegoro, Jl. Prof. Sudarto, SH, Tembalang, Semarang, Jawa Tengah 50275"
     },
     {
       icon: Phone,
@@ -91,15 +91,24 @@ const ContactSection = () => {
               </motion.div>
             ))}
 
-            {/* Map placeholder */}
+            {/* Map */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.4 }}
               viewport={{ once: true }}
-              className="mt-8 rounded-2xl overflow-hidden border border-border h-64 bg-muted flex items-center justify-center"
+              className="mt-8 rounded-2xl overflow-hidden border border-border h-64 shadow-lg"
             >
-              <p className="text-muted-foreground">Peta Lokasi</p>
+              <iframe
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3960.2396736573755!2d110.44068507499654!3d-7.050175468963785!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x2e708c09c07bc741%3A0x1e73711c2be3bb1e!2sDepartemen%20Teknik%20Industri%20UNDIP!5e0!3m2!1sen!2sid!4v1732635000000"
+                width="100%"
+                height="100%"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                title="Lokasi Klinik Sehat - Teknik Industri UNDIP"
+              />
             </motion.div>
           </motion.div>
 

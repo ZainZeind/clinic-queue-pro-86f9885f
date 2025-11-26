@@ -7,14 +7,76 @@ import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
 import { User, Bell, Shield } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Settings() {
   const { user } = useAuth();
+  const { toast } = useToast();
+  
+  const [profile, setProfile] = useState({
+    fullName: user?.full_name || '',
+    email: user?.email || '',
+    phone: ''
+  });
+
   const [notifications, setNotifications] = useState({
     email: true,
     push: true,
     sms: false
   });
+
+  const [passwords, setPasswords] = useState({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+
+  const handleSaveProfile = () => {
+    // Simulate API call
+    toast({
+      title: "Profil diperbarui",
+      description: "Perubahan profil Anda telah disimpan.",
+    });
+  };
+
+  const handleSaveNotifications = () => {
+    toast({
+      title: "Pengaturan notifikasi disimpan",
+      description: "Preferensi notifikasi Anda telah diperbarui.",
+    });
+  };
+
+  const handleChangePassword = () => {
+    if (passwords.newPassword !== passwords.confirmPassword) {
+      toast({
+        title: "Password tidak cocok",
+        description: "Password baru dan konfirmasi password harus sama.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (passwords.newPassword.length < 6) {
+      toast({
+        title: "Password terlalu pendek",
+        description: "Password minimal 6 karakter.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Simulate API call
+    toast({
+      title: "Password diubah",
+      description: "Password Anda telah berhasil diubah.",
+    });
+    
+    setPasswords({
+      oldPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    });
+  };
 
   return (
     <DashboardLayout>
@@ -37,18 +99,34 @@ export default function Settings() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nama Lengkap</Label>
-                  <Input defaultValue={user?.full_name} />
+                  <Input 
+                    value={profile.fullName}
+                    onChange={(e) => setProfile({...profile, fullName: e.target.value})}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Email</Label>
-                  <Input defaultValue={user?.email} type="email" />
+                  <Input 
+                    value={profile.email}
+                    onChange={(e) => setProfile({...profile, email: e.target.value})}
+                    type="email"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Nomor Telepon</Label>
-                  <Input placeholder="+62 812-3456-7890" />
+                  <Input 
+                    value={profile.phone}
+                    onChange={(e) => setProfile({...profile, phone: e.target.value})}
+                    placeholder="+62 812-3456-7890"
+                  />
                 </div>
               </div>
-              <Button className="bg-gradient-primary">Simpan Perubahan</Button>
+              <Button 
+                onClick={handleSaveProfile}
+                className="bg-gradient-primary hover:shadow-glow-primary"
+              >
+                Simpan Perubahan
+              </Button>
             </CardContent>
           </Card>
 
@@ -91,6 +169,12 @@ export default function Settings() {
                   onCheckedChange={(checked) => setNotifications({ ...notifications, sms: checked })}
                 />
               </div>
+              <Button 
+                onClick={handleSaveNotifications}
+                variant="outline"
+              >
+                Simpan Pengaturan Notifikasi
+              </Button>
             </CardContent>
           </Card>
 
@@ -105,17 +189,38 @@ export default function Settings() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label>Password Lama</Label>
-                <Input type="password" placeholder="••••••••" />
+                <Input 
+                  type="password" 
+                  placeholder="••••••••"
+                  value={passwords.oldPassword}
+                  onChange={(e) => setPasswords({...passwords, oldPassword: e.target.value})}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Password Baru</Label>
-                <Input type="password" placeholder="••••••••" />
+                <Input 
+                  type="password" 
+                  placeholder="••••••••"
+                  value={passwords.newPassword}
+                  onChange={(e) => setPasswords({...passwords, newPassword: e.target.value})}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Konfirmasi Password Baru</Label>
-                <Input type="password" placeholder="••••••••" />
+                <Input 
+                  type="password" 
+                  placeholder="••••••••"
+                  value={passwords.confirmPassword}
+                  onChange={(e) => setPasswords({...passwords, confirmPassword: e.target.value})}
+                />
               </div>
-              <Button variant="outline">Ubah Password</Button>
+              <Button 
+                variant="outline"
+                onClick={handleChangePassword}
+                disabled={!passwords.oldPassword || !passwords.newPassword || !passwords.confirmPassword}
+              >
+                Ubah Password
+              </Button>
             </CardContent>
           </Card>
 
