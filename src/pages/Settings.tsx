@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
 import { User, Bell, Shield } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { api } from '@/lib/api';
 
 export default function Settings() {
   const { user } = useAuth();
@@ -31,12 +32,25 @@ export default function Settings() {
     confirmPassword: ''
   });
 
-  const handleSaveProfile = () => {
-    // Simulate API call
-    toast({
-      title: "Profil diperbarui",
-      description: "Perubahan profil Anda telah disimpan.",
-    });
+  const handleSaveProfile = async () => {
+    try {
+      const response = await api.updateProfile({
+        full_name: profile.fullName,
+        email: profile.email,
+        phone: profile.phone
+      });
+      
+      toast({
+        title: "Profil diperbarui",
+        description: response.message || "Perubahan profil Anda telah disimpan ke database.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Gagal memperbarui profil",
+        description: error.message || "Terjadi kesalahan saat menyimpan profil.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleSaveNotifications = () => {
@@ -46,7 +60,7 @@ export default function Settings() {
     });
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (passwords.newPassword !== passwords.confirmPassword) {
       toast({
         title: "Password tidak cocok",
@@ -65,17 +79,29 @@ export default function Settings() {
       return;
     }
 
-    // Simulate API call
-    toast({
-      title: "Password diubah",
-      description: "Password Anda telah berhasil diubah.",
-    });
-    
-    setPasswords({
-      oldPassword: '',
-      newPassword: '',
-      confirmPassword: ''
-    });
+    try {
+      const response = await api.changePassword({
+        oldPassword: passwords.oldPassword,
+        newPassword: passwords.newPassword
+      });
+      
+      toast({
+        title: "Password diubah",
+        description: response.message || "Password Anda telah berhasil diubah di database.",
+      });
+      
+      setPasswords({
+        oldPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+    } catch (error: any) {
+      toast({
+        title: "Gagal mengubah password",
+        description: error.message || "Terjadi kesalahan saat mengubah password.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (

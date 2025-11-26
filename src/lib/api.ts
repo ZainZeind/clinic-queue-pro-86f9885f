@@ -58,6 +58,27 @@ class ApiService {
     return this.request('/auth/profile');
   }
 
+  async updateProfile(profileData: {
+    full_name?: string;
+    email?: string;
+    phone?: string;
+  }) {
+    return this.request('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    });
+  }
+
+  async changePassword(passwordData: {
+    oldPassword: string;
+    newPassword: string;
+  }) {
+    return this.request('/auth/change-password', {
+      method: 'PUT',
+      body: JSON.stringify(passwordData),
+    });
+  }
+
   // Doctor - Schedules
   async getDoctorSchedules(doctorId?: number) {
     const endpoint = doctorId

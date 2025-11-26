@@ -1,128 +1,156 @@
 import pool from '../config/database.js';
 
-// Manage Doctor Schedules
+// ==========================================
+// DOCTOR SCHEDULES MANAGEMENT
+// ==========================================
+
 export const getSchedules = async (req, res) => {
   try {
     const doctorId = req.user.role === 'dokter' ? req.user.id : req.params.doctorId;
     
-    const [schedules] = await pool.query(
-      `SELECT ds.*, p.full_name as doctor_name 
-       FROM doctor_schedules ds
-       LEFT JOIN profiles p ON ds.doctor_id = p.user_id
-       WHERE ds.doctor_id = ? AND ds.is_active = TRUE
-       ORDER BY FIELD(ds.day_of_week, 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu')`,
+    const [dokter] = await pool.query(
+      'SELECT jadwal_praktik FROM dokter WHERE id_dokter = ?',
       [doctorId]
     );
 
-    res.json({ schedules });
+    if (dokter.length === 0) {
+      return res.status(404).json({ message: 'Dokter tidak ditemukan' });
+    }
+
+    // Parse jadwal_praktik JSON
+    let schedules = [];
+    try {
+      if (dokter[0].jadwal_praktik) {
+        const jadwalObj = JSON.parse(dokter[0].jadwal_praktik);
+        schedules = Object.keys(jadwalObj).map(day => ({
+          day_of_week: day,
+          time: jadwalObj[day]
+        }));
+      }
+    } catch (e) {
+      schedules = [];
+    }
+
+    res.json({ schedules, raw: dokter[0].jadwal_praktik });
   } catch (error) {
     console.error('Get schedules error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
 export const createSchedule = async (req, res) => {
   try {
-    const { day_of_week, start_time, end_time, max_patients, notes } = req.body;
+    const { schedules } = req.body; // Expected: {senin: "08:00-14:00", rabu: "08:00-14:00"}
     const doctorId = req.user.id;
 
-    const [result] = await pool.query(
-      `INSERT INTO doctor_schedules (doctor_id, day_of_week, start_time, end_time, max_patients, notes)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [doctorId, day_of_week, start_time, end_time, max_patients || 20, notes || null]
+    const jadwalJson = JSON.stringify(schedules);
+
+    await pool.query(
+      'UPDATE dokter SET jadwal_praktik = ? WHERE id_dokter = ?',
+      [jadwalJson, doctorId]
     );
 
     res.status(201).json({
-      message: 'Jadwal berhasil ditambahkan',
-      scheduleId: result.insertId
+      message: 'Jadwal telah diperbarui'
     });
   } catch (error) {
     console.error('Create schedule error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
 export const updateSchedule = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { day_of_week, start_time, end_time, max_patients, notes, is_active } = req.body;
+    const { schedules } = req.body;
     const doctorId = req.user.id;
 
-    const [result] = await pool.query(
-      `UPDATE doctor_schedules 
-       SET day_of_week = ?, start_time = ?, end_time = ?, max_patients = ?, notes = ?, is_active = ?
-       WHERE id = ? AND doctor_id = ?`,
-      [day_of_week, start_time, end_time, max_patients, notes, is_active, id, doctorId]
+    const jadwalJson = JSON.stringify(schedules);
+
+    await pool.query(
+      'UPDATE dokter SET jadwal_praktik = ? WHERE id_dokter = ?',
+      [jadwalJson, doctorId]
     );
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Jadwal tidak ditemukan' });
-    }
-
-    res.json({ message: 'Jadwal berhasil diperbarui' });
+    res.json({ message: 'Jadwal telah diperbarui' });
   } catch (error) {
     console.error('Update schedule error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
 export const deleteSchedule = async (req, res) => {
   try {
-    const { id } = req.params;
+    const { day } = req.params;
     const doctorId = req.user.id;
 
-    const [result] = await pool.query(
-      'DELETE FROM doctor_schedules WHERE id = ? AND doctor_id = ?',
-      [id, doctorId]
+    // Get current schedules
+    const [dokter] = await pool.query(
+      'SELECT jadwal_praktik FROM dokter WHERE id_dokter = ?',
+      [doctorId]
     );
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Jadwal tidak ditemukan' });
+    if (dokter.length === 0) {
+      return res.status(404).json({ message: 'Dokter tidak ditemukan' });
     }
 
-    res.json({ message: 'Jadwal berhasil dihapus' });
+    let schedules = {};
+    try {
+      schedules = JSON.parse(dokter[0].jadwal_praktik || '{}');
+    } catch (e) {
+      schedules = {};
+    }
+
+    delete schedules[day];
+
+    await pool.query(
+      'UPDATE dokter SET jadwal_praktik = ? WHERE id_dokter = ?',
+      [JSON.stringify(schedules), doctorId]
+    );
+
+    res.json({ message: 'Jadwal telah dihapus' });
   } catch (error) {
     console.error('Delete schedule error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
-// Medical Records Management
+// ==========================================
+// MEDICAL RECORDS MANAGEMENT
+// ==========================================
+
 export const createMedicalRecord = async (req, res) => {
   try {
     const {
-      patient_id,
-      appointment_id,
+      nik_pasien,
+      nama_pasien,
+      keluhan,
       diagnosis,
-      symptoms,
+      examination_result,
       treatment,
       prescription,
-      blood_pressure,
-      temperature,
-      weight,
-      height,
       notes,
+      cost,
       record_date
     } = req.body;
     
     const doctorId = req.user.id;
 
     const [result] = await pool.query(
-      `INSERT INTO medical_records 
-       (patient_id, doctor_id, appointment_id, diagnosis, symptoms, treatment, prescription, 
-        blood_pressure, temperature, weight, height, notes, record_date)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [patient_id, doctorId, appointment_id || null, diagnosis, symptoms, treatment, prescription,
-       blood_pressure, temperature, weight, height, notes, record_date]
+      `INSERT INTO rekam_medis 
+       (NIK_pasien, nama_pasien, id_dokter, tanggal_periksa, keluhan, diagnosa_pasien, 
+        hasil_pemeriksaan, tindakan, resep_obat, catatan_dokter, biaya_pemeriksaan)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [nik_pasien, nama_pasien, doctorId, record_date || new Date(), keluhan, diagnosis, 
+       examination_result, treatment, prescription, notes, cost || 0]
     );
 
     res.status(201).json({
-      message: 'Rekam medis berhasil ditambahkan',
+      message: 'Rekam medis telah disimpan',
       recordId: result.insertId
     });
   } catch (error) {
     console.error('Create medical record error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
@@ -131,21 +159,31 @@ export const getMedicalRecords = async (req, res) => {
     const { patient_id } = req.params;
     
     const [records] = await pool.query(
-      `SELECT mr.*, 
-              p_patient.full_name as patient_name,
-              p_doctor.full_name as doctor_name
-       FROM medical_records mr
-       LEFT JOIN profiles p_patient ON mr.patient_id = p_patient.user_id
-       LEFT JOIN profiles p_doctor ON mr.doctor_id = p_doctor.user_id
-       WHERE mr.patient_id = ?
-       ORDER BY mr.record_date DESC`,
+      `SELECT 
+        rm.id_rekam_medis as id,
+        rm.NIK_pasien,
+        rm.nama_pasien as patient_name,
+        rm.tanggal_periksa as record_date,
+        rm.keluhan as complaint,
+        rm.diagnosa_pasien as diagnosis,
+        rm.hasil_pemeriksaan as examination_result,
+        rm.tindakan as treatment,
+        rm.resep_obat as prescription,
+        rm.catatan_dokter as notes,
+        rm.biaya_pemeriksaan as cost,
+        d.nama_dokter as doctor_name,
+        d.spesialisasi
+       FROM rekam_medis rm
+       LEFT JOIN dokter d ON rm.id_dokter = d.id_dokter
+       WHERE rm.NIK_pasien = ?
+       ORDER BY rm.tanggal_periksa DESC`,
       [patient_id]
     );
 
     res.json({ records });
   } catch (error) {
     console.error('Get medical records error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
@@ -153,36 +191,37 @@ export const updateMedicalRecord = async (req, res) => {
   try {
     const { id } = req.params;
     const {
+      keluhan,
       diagnosis,
-      symptoms,
+      examination_result,
       treatment,
       prescription,
-      blood_pressure,
-      temperature,
-      weight,
-      height,
-      notes
+      notes,
+      cost
     } = req.body;
 
     const [result] = await pool.query(
-      `UPDATE medical_records 
-       SET diagnosis = ?, symptoms = ?, treatment = ?, prescription = ?,
-           blood_pressure = ?, temperature = ?, weight = ?, height = ?, notes = ?
-       WHERE id = ? AND doctor_id = ?`,
-      [diagnosis, symptoms, treatment, prescription, blood_pressure, temperature, 
-       weight, height, notes, id, req.user.id]
+      `UPDATE rekam_medis 
+       SET keluhan = ?, diagnosa_pasien = ?, hasil_pemeriksaan = ?, tindakan = ?,
+           resep_obat = ?, catatan_dokter = ?, biaya_pemeriksaan = ?
+       WHERE id_rekam_medis = ? AND id_dokter = ?`,
+      [keluhan, diagnosis, examination_result, treatment, prescription, notes, cost, id, req.user.id]
     );
 
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: 'Rekam medis tidak ditemukan' });
     }
 
-    res.json({ message: 'Rekam medis berhasil diperbarui' });
+    res.json({ message: 'Rekam medis telah diperbarui' });
   } catch (error) {
     console.error('Update medical record error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
+
+// ==========================================
+// TODAY'S PATIENTS
+// ==========================================
 
 export const getTodayPatients = async (req, res) => {
   try {
@@ -190,18 +229,32 @@ export const getTodayPatients = async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
 
     const [patients] = await pool.query(
-      `SELECT a.*, p.full_name, p.phone, p.date_of_birth, q.queue_number, q.status as queue_status
-       FROM appointments a
-       LEFT JOIN profiles p ON a.patient_id = p.user_id
-       LEFT JOIN queue q ON a.id = q.appointment_id
-       WHERE a.doctor_id = ? AND a.appointment_date = ?
-       ORDER BY q.queue_number ASC`,
+      `SELECT 
+        na.id_antrian,
+        na.nomor_antrian,
+        na.NIK_pasien,
+        na.nama_pasien,
+        na.status_antrian as queue_status,
+        na.tanggal_antrian,
+        na.waktu_mulai,
+        na.prioritas,
+        p.no_hp as phone,
+        p.tanggal_lahir as date_of_birth,
+        p.jenis_kelamin as gender,
+        p.alamat as address,
+        po.keluhan_pasien as complaint,
+        po.waktu_daftar as appointment_time
+       FROM nomor_antrian na
+       LEFT JOIN pasien p ON na.NIK_pasien = p.NIK_pasien
+       LEFT JOIN pendaftaran_online po ON na.id_pendaftaran = po.id_pendaftaran
+       WHERE na.id_dokter = ? AND na.tanggal_antrian = ?
+       ORDER BY na.prioritas DESC, na.nomor_antrian ASC`,
       [doctorId, today]
     );
 
     res.json({ patients });
   } catch (error) {
     console.error('Get today patients error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };

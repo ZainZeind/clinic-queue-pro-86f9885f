@@ -1,28 +1,42 @@
 import pool from '../config/database.js';
 import bcrypt from 'bcryptjs';
+import { validatePhone, validateNIK, validatePassword } from '../utils/validation.js';
 
-// Queue Management
+// ==========================================
+// QUEUE MANAGEMENT (NOMOR ANTRIAN)
+// ==========================================
+
 export const getTodayQueue = async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
 
     const [queue] = await pool.query(
-      `SELECT q.*, a.appointment_time,
-              p_patient.full_name as patient_name,
-              p_doctor.full_name as doctor_name
-       FROM queue q
-       LEFT JOIN appointments a ON q.appointment_id = a.id
-       LEFT JOIN profiles p_patient ON a.patient_id = p_patient.user_id
-       LEFT JOIN profiles p_doctor ON a.doctor_id = p_doctor.user_id
-       WHERE q.queue_date = ?
-       ORDER BY q.queue_number ASC`,
+      `SELECT 
+        na.id_antrian,
+        na.nomor_antrian,
+        na.NIK_pasien,
+        na.nama_pasien,
+        na.tanggal_antrian,
+        na.waktu_mulai,
+        na.waktu_selesai,
+        na.status_antrian,
+        na.prioritas,
+        d.nama_dokter,
+        d.spesialisasi,
+        po.keluhan_pasien,
+        po.waktu_daftar
+       FROM nomor_antrian na
+       LEFT JOIN dokter d ON na.id_dokter = d.id_dokter
+       LEFT JOIN pendaftaran_online po ON na.id_pendaftaran = po.id_pendaftaran
+       WHERE na.tanggal_antrian = ?
+       ORDER BY na.prioritas DESC, na.nomor_antrian ASC`,
       [today]
     );
 
     res.json({ queue });
   } catch (error) {
     console.error('Get today queue error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
@@ -31,7 +45,9 @@ export const callQueue = async (req, res) => {
     const { queue_id } = req.body;
 
     const [result] = await pool.query(
-      `UPDATE queue SET status = 'in_progress', called_at = NOW() WHERE id = ?`,
+      `UPDATE nomor_antrian 
+       SET status_antrian = 'Dipanggil', waktu_mulai = NOW() 
+       WHERE id_antrian = ?`,
       [queue_id]
     );
 
@@ -41,26 +57,25 @@ export const callQueue = async (req, res) => {
 
     // Get queue info for notification
     const [queueInfo] = await pool.query(
-      `SELECT q.queue_number, a.patient_id 
-       FROM queue q 
-       LEFT JOIN appointments a ON q.appointment_id = a.id 
-       WHERE q.id = ?`,
+      `SELECT nomor_antrian, NIK_pasien, nama_pasien 
+       FROM nomor_antrian 
+       WHERE id_antrian = ?`,
       [queue_id]
     );
 
     if (queueInfo.length > 0) {
       await pool.query(
-        `INSERT INTO notifications (user_id, title, message, type, related_id)
-         VALUES (?, ?, ?, 'queue', ?)`,
-        [queueInfo[0].patient_id, 'Giliran Anda', 
-         `Nomor antrian ${queueInfo[0].queue_number} dipanggil. Silakan menuju ruang praktek.`, queue_id]
+        `INSERT INTO notifikasi (id_antrian, NIK_pasien, judul_notifikasi, isi_notifikasi, jenis_notifikasi, status_antrian)
+         VALUES (?, ?, ?, ?, 'Antrian', 'Dipanggil')`,
+        [queue_id, queueInfo[0].NIK_pasien, 'Giliran Anda', 
+         `Nomor antrian ${queueInfo[0].nomor_antrian} dipanggil. Silakan menuju ruang praktek.`]
       );
     }
 
-    res.json({ message: 'Antrian berhasil dipanggil' });
+    res.json({ message: 'Pasien telah dipanggil' });
   } catch (error) {
     console.error('Call queue error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
@@ -69,7 +84,9 @@ export const completeQueue = async (req, res) => {
     const { queue_id } = req.body;
 
     const [result] = await pool.query(
-      `UPDATE queue SET status = 'completed', completed_at = NOW() WHERE id = ?`,
+      `UPDATE nomor_antrian 
+       SET status_antrian = 'Selesai', waktu_selesai = NOW() 
+       WHERE id_antrian = ?`,
       [queue_id]
     );
 
@@ -77,10 +94,10 @@ export const completeQueue = async (req, res) => {
       return res.status(404).json({ message: 'Antrian tidak ditemukan' });
     }
 
-    res.json({ message: 'Antrian selesai' });
+    res.json({ message: 'Antrian telah selesai' });
   } catch (error) {
     console.error('Complete queue error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
@@ -89,7 +106,7 @@ export const skipQueue = async (req, res) => {
     const { queue_id } = req.body;
 
     const [result] = await pool.query(
-      `UPDATE queue SET status = 'skipped' WHERE id = ?`,
+      `UPDATE nomor_antrian SET status_antrian = 'Batal' WHERE id_antrian = ?`,
       [queue_id]
     );
 
@@ -97,174 +114,253 @@ export const skipQueue = async (req, res) => {
       return res.status(404).json({ message: 'Antrian tidak ditemukan' });
     }
 
-    res.json({ message: 'Antrian dilewati' });
+    res.json({ message: 'Antrian telah dibatalkan' });
   } catch (error) {
     console.error('Skip queue error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
-// User Management
+// ==========================================
+// USER MANAGEMENT
+// ==========================================
+
 export const getAllUsers = async (req, res) => {
   try {
     const { role } = req.query;
     
-    let query = `
-      SELECT u.id, u.email, u.role, u.created_at,
-             p.full_name, p.phone, p.address, p.date_of_birth, p.gender
-      FROM users u
-      LEFT JOIN profiles p ON u.id = p.user_id
-    `;
-    
-    const params = [];
-    
-    if (role) {
-      query += ' WHERE u.role = ?';
-      params.push(role);
-    }
-    
-    query += ' ORDER BY u.created_at DESC';
+    let users = [];
 
-    const [users] = await pool.query(query, params);
+    if (!role || role === 'admin') {
+      const [admins] = await pool.query(
+        `SELECT id_admin as id, nama_admin as full_name, email, 'admin' as role, created_at 
+         FROM admin 
+         ORDER BY created_at DESC`
+      );
+      users = [...users, ...admins];
+    }
+
+    if (!role || role === 'dokter') {
+      const [dokters] = await pool.query(
+        `SELECT id_dokter as id, nama_dokter as full_name, email, no_hp as phone, 
+                spesialisasi, no_sip, status_aktif, 'dokter' as role, created_at 
+         FROM dokter 
+         ORDER BY created_at DESC`
+      );
+      users = [...users, ...dokters];
+    }
+
+    if (!role || role === 'pasien') {
+      const [pasiens] = await pool.query(
+        `SELECT NIK_pasien as id, nama_pasien as full_name, email, no_hp as phone, 
+                alamat as address, tanggal_lahir as date_of_birth, jenis_kelamin as gender,
+                golongan_darah, 'pasien' as role, created_at 
+         FROM pasien 
+         ORDER BY created_at DESC`
+      );
+      users = [...users, ...pasiens];
+    }
+
     res.json({ users });
   } catch (error) {
     console.error('Get all users error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
 export const createUser = async (req, res) => {
-  const connection = await pool.getConnection();
-  
   try {
-    await connection.beginTransaction();
+    const { 
+      email, 
+      password, 
+      role, 
+      full_name, 
+      phone, 
+      address, 
+      date_of_birth, 
+      gender,
+      nik,
+      specialization,
+      sip 
+    } = req.body;
 
-    const { email, password, role, full_name, phone, address, date_of_birth, gender } = req.body;
+    // Validate phone number if provided
+    if (phone) {
+      const phoneValidation = validatePhone(phone);
+      if (!phoneValidation.valid) {
+        return res.status(400).json({ message: phoneValidation.message });
+      }
+    }
 
-    const [existingUser] = await connection.query(
-      'SELECT id FROM users WHERE email = ?',
-      [email]
-    );
+    // Validate NIK for pasien
+    if (role === 'pasien') {
+      const nikValidation = validateNIK(nik);
+      if (!nikValidation.valid) {
+        return res.status(400).json({ message: nikValidation.message });
+      }
+    }
 
-    if (existingUser.length > 0) {
-      await connection.rollback();
-      return res.status(400).json({ message: 'Email sudah terdaftar' });
+    // Validate password
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ message: passwordValidation.message });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const [userResult] = await connection.query(
-      'INSERT INTO users (email, password, role) VALUES (?, ?, ?)',
-      [email, hashedPassword, role]
-    );
+    if (role === 'admin') {
+      const [result] = await pool.query(
+        'INSERT INTO admin (nama_admin, email, password) VALUES (?, ?, ?)',
+        [full_name, email, hashedPassword]
+      );
+      res.status(201).json({ message: 'Data admin telah ditambahkan', userId: result.insertId });
 
-    const userId = userResult.insertId;
+    } else if (role === 'dokter') {
+      const [result] = await pool.query(
+        'INSERT INTO dokter (nama_dokter, spesialisasi, no_sip, no_hp, email, password, status_aktif) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [full_name, specialization || 'Umum', sip || `SIP-${Date.now()}`, phone || '', email, hashedPassword, 'Aktif']
+      );
+      res.status(201).json({ message: 'Data dokter telah ditambahkan', userId: result.insertId });
 
-    await connection.query(
-      'INSERT INTO profiles (user_id, full_name, phone, address, date_of_birth, gender) VALUES (?, ?, ?, ?, ?, ?)',
-      [userId, full_name, phone || null, address || null, date_of_birth || null, gender || null]
-    );
-
-    await connection.commit();
-
-    res.status(201).json({
-      message: 'User berhasil dibuat',
-      userId
-    });
+    } else if (role === 'pasien') {
+      if (!nik) {
+        return res.status(400).json({ message: 'NIK wajib diisi untuk pasien' });
+      }
+      await pool.query(
+        'INSERT INTO pasien (NIK_pasien, nama_pasien, tanggal_lahir, alamat, no_hp, email, jenis_kelamin, password) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [nik, full_name, date_of_birth || '2000-01-01', address || '', phone || '', email || null, gender || 'Laki-laki', hashedPassword]
+      );
+      res.status(201).json({ message: 'Data pasien telah ditambahkan', userId: nik });
+    }
   } catch (error) {
-    await connection.rollback();
     console.error('Create user error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
-  } finally {
-    connection.release();
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
 export const updateUser = async (req, res) => {
-  const connection = await pool.getConnection();
-  
   try {
-    await connection.beginTransaction();
-
     const { id } = req.params;
-    const { email, password, role, full_name, phone, address, date_of_birth, gender } = req.body;
+    const { role, email, password, full_name, phone, address, date_of_birth, gender, specialization } = req.body;
 
-    // Update user basic info
-    if (password && password.trim() !== '') {
-      // If password provided, hash and update
-      const hashedPassword = await bcrypt.hash(password, 10);
-      await connection.query(
-        'UPDATE users SET email = ?, password = ?, role = ? WHERE id = ?',
-        [email, hashedPassword, role, id]
-      );
-    } else {
-      // If no password, update without changing password
-      await connection.query(
-        'UPDATE users SET email = ?, role = ? WHERE id = ?',
-        [email, role, id]
-      );
+    // Validate phone number if provided
+    if (phone) {
+      const phoneValidation = validatePhone(phone);
+      if (!phoneValidation.valid) {
+        return res.status(400).json({ message: phoneValidation.message });
+      }
     }
 
-    // Update profile
-    await connection.query(
-      `UPDATE profiles 
-       SET full_name = ?, phone = ?, address = ?, date_of_birth = ?, gender = ?
-       WHERE user_id = ?`,
-      [full_name, phone || null, address || null, date_of_birth || null, gender || null, id]
-    );
+    // Validate password if provided (for update)
+    if (password && password.trim() !== '') {
+      const passwordValidation = validatePassword(password, true);
+      if (!passwordValidation.valid) {
+        return res.status(400).json({ message: passwordValidation.message });
+      }
+    }
 
-    await connection.commit();
+    const hashedPassword = password && password.trim() !== '' ? await bcrypt.hash(password, 10) : null;
 
-    res.json({ message: 'User berhasil diperbarui' });
+    if (role === 'admin') {
+      if (hashedPassword) {
+        await pool.query(
+          'UPDATE admin SET nama_admin = ?, email = ?, password = ? WHERE id_admin = ?',
+          [full_name, email, hashedPassword, id]
+        );
+      } else {
+        await pool.query(
+          'UPDATE admin SET nama_admin = ?, email = ? WHERE id_admin = ?',
+          [full_name, email, id]
+        );
+      }
+    } else if (role === 'dokter') {
+      if (hashedPassword) {
+        await pool.query(
+          'UPDATE dokter SET nama_dokter = ?, email = ?, password = ?, no_hp = ?, spesialisasi = ? WHERE id_dokter = ?',
+          [full_name, email, hashedPassword, phone, specialization, id]
+        );
+      } else {
+        await pool.query(
+          'UPDATE dokter SET nama_dokter = ?, email = ?, no_hp = ?, spesialisasi = ? WHERE id_dokter = ?',
+          [full_name, email, phone, specialization, id]
+        );
+      }
+    } else if (role === 'pasien') {
+      if (hashedPassword) {
+        await pool.query(
+          'UPDATE pasien SET nama_pasien = ?, email = ?, password = ?, no_hp = ?, alamat = ?, tanggal_lahir = ?, jenis_kelamin = ? WHERE NIK_pasien = ?',
+          [full_name, email, hashedPassword, phone, address, date_of_birth, gender, id]
+        );
+      } else {
+        await pool.query(
+          'UPDATE pasien SET nama_pasien = ?, email = ?, no_hp = ?, alamat = ?, tanggal_lahir = ?, jenis_kelamin = ? WHERE NIK_pasien = ?',
+          [full_name, email, phone, address, date_of_birth, gender, id]
+        );
+      }
+    }
+
+    res.json({ message: 'Data user telah diperbarui' });
   } catch (error) {
-    await connection.rollback();
     console.error('Update user error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
-  } finally {
-    connection.release();
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
 export const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
+    const { role } = req.query;
 
-    const [result] = await pool.query(
-      'DELETE FROM users WHERE id = ?',
-      [id]
-    );
+    let result;
 
-    if (result.affectedRows === 0) {
+    if (role === 'admin') {
+      [result] = await pool.query('DELETE FROM admin WHERE id_admin = ?', [id]);
+    } else if (role === 'dokter') {
+      [result] = await pool.query('DELETE FROM dokter WHERE id_dokter = ?', [id]);
+    } else if (role === 'pasien') {
+      [result] = await pool.query('DELETE FROM pasien WHERE NIK_pasien = ?', [id]);
+    }
+
+    if (result && result.affectedRows === 0) {
       return res.status(404).json({ message: 'User tidak ditemukan' });
     }
 
-    res.json({ message: 'User berhasil dihapus' });
+    res.json({ message: 'Data user telah dihapus' });
   } catch (error) {
     console.error('Delete user error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
-// Patient Database
+// ==========================================
+// PATIENT DATABASE
+// ==========================================
+
 export const getAllPatients = async (req, res) => {
   try {
     const [patients] = await pool.query(
-      `SELECT u.id, u.email, u.created_at,
-              p.full_name, p.phone, p.address, p.date_of_birth, p.gender,
-              COUNT(DISTINCT a.id) as total_visits,
-              MAX(a.appointment_date) as last_visit
-       FROM users u
-       LEFT JOIN profiles p ON u.id = p.user_id
-       LEFT JOIN appointments a ON u.id = a.patient_id
-       WHERE u.role = 'pasien'
-       GROUP BY u.id
-       ORDER BY u.created_at DESC`
+      `SELECT 
+        p.NIK_pasien as id,
+        p.nama_pasien as full_name,
+        p.email,
+        p.no_hp as phone,
+        p.alamat as address,
+        p.tanggal_lahir as date_of_birth,
+        p.jenis_kelamin as gender,
+        p.golongan_darah,
+        p.created_at,
+        COUNT(DISTINCT po.id_pendaftaran) as total_visits,
+        MAX(po.tanggal_pendaftaran) as last_visit
+       FROM pasien p
+       LEFT JOIN pendaftaran_online po ON p.NIK_pasien = po.NIK_pasien
+       GROUP BY p.NIK_pasien
+       ORDER BY p.created_at DESC`
     );
 
     res.json({ patients });
   } catch (error) {
     console.error('Get all patients error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
@@ -273,11 +369,18 @@ export const getPatientDetail = async (req, res) => {
     const { id } = req.params;
 
     const [patient] = await pool.query(
-      `SELECT u.id, u.email, u.created_at,
-              p.*
-       FROM users u
-       LEFT JOIN profiles p ON u.id = p.user_id
-       WHERE u.id = ? AND u.role = 'pasien'`,
+      `SELECT 
+        NIK_pasien as id,
+        nama_pasien as full_name,
+        email,
+        no_hp as phone,
+        alamat as address,
+        tanggal_lahir as date_of_birth,
+        jenis_kelamin as gender,
+        golongan_darah,
+        created_at
+       FROM pasien
+       WHERE NIK_pasien = ?`,
       [id]
     );
 
@@ -286,20 +389,41 @@ export const getPatientDetail = async (req, res) => {
     }
 
     const [appointments] = await pool.query(
-      `SELECT a.*, p.full_name as doctor_name
-       FROM appointments a
-       LEFT JOIN profiles p ON a.doctor_id = p.user_id
-       WHERE a.patient_id = ?
-       ORDER BY a.appointment_date DESC`,
+      `SELECT 
+        po.id_pendaftaran as id,
+        po.tanggal_pendaftaran as appointment_date,
+        po.waktu_daftar as appointment_time,
+        po.keluhan_pasien as complaint,
+        po.status_pendaftaran as status,
+        d.nama_dokter as doctor_name,
+        d.spesialisasi,
+        na.nomor_antrian,
+        na.status_antrian as queue_status
+       FROM pendaftaran_online po
+       LEFT JOIN dokter d ON po.id_dokter = d.id_dokter
+       LEFT JOIN nomor_antrian na ON po.id_pendaftaran = na.id_pendaftaran
+       WHERE po.NIK_pasien = ?
+       ORDER BY po.tanggal_pendaftaran DESC`,
       [id]
     );
 
     const [medicalRecords] = await pool.query(
-      `SELECT mr.*, p.full_name as doctor_name
-       FROM medical_records mr
-       LEFT JOIN profiles p ON mr.doctor_id = p.user_id
-       WHERE mr.patient_id = ?
-       ORDER BY mr.record_date DESC`,
+      `SELECT 
+        rm.id_rekam_medis as id,
+        rm.tanggal_periksa as record_date,
+        rm.keluhan as symptoms,
+        rm.diagnosa_pasien as diagnosis,
+        rm.hasil_pemeriksaan as examination_result,
+        rm.tindakan as treatment,
+        rm.resep_obat as prescription,
+        rm.catatan_dokter as notes,
+        rm.biaya_pemeriksaan as cost,
+        d.nama_dokter as doctor_name,
+        d.spesialisasi
+       FROM rekam_medis rm
+       LEFT JOIN dokter d ON rm.id_dokter = d.id_dokter
+       WHERE rm.NIK_pasien = ?
+       ORDER BY rm.tanggal_periksa DESC`,
       [id]
     );
 
@@ -310,88 +434,103 @@ export const getPatientDetail = async (req, res) => {
     });
   } catch (error) {
     console.error('Get patient detail error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
-// Notifications Management
+// ==========================================
+// NOTIFICATIONS MANAGEMENT
+// ==========================================
+
 export const createNotification = async (req, res) => {
   try {
-    const { user_id, title, message, type, scheduled_at } = req.body;
+    const { nik_pasien, title, message, type, scheduled_at } = req.body;
 
     const [result] = await pool.query(
-      `INSERT INTO notifications (user_id, title, message, type, scheduled_at)
+      `INSERT INTO notifikasi (NIK_pasien, judul_notifikasi, isi_notifikasi, jenis_notifikasi, waktu_kirim)
        VALUES (?, ?, ?, ?, ?)`,
-      [user_id, title, message, type || 'general', scheduled_at || null]
+      [nik_pasien, title, message, type || 'Umum', scheduled_at || null]
     );
 
     res.status(201).json({
-      message: 'Notifikasi berhasil dibuat',
+      message: 'Notifikasi telah dikirim',
       notificationId: result.insertId
     });
   } catch (error) {
     console.error('Create notification error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
 export const sendBulkNotification = async (req, res) => {
   try {
-    const { role, title, message, type } = req.body;
+    const { title, message, type } = req.body;
 
-    const [users] = await pool.query(
-      'SELECT id FROM users WHERE role = ?',
-      [role]
-    );
+    // Send to all patients
+    const [patients] = await pool.query('SELECT NIK_pasien FROM pasien');
 
-    const values = users.map(user => [user.id, title, message, type || 'general']);
+    const values = patients.map(p => [p.NIK_pasien, title, message, type || 'Umum']);
 
     if (values.length > 0) {
       await pool.query(
-        'INSERT INTO notifications (user_id, title, message, type) VALUES ?',
+        'INSERT INTO notifikasi (NIK_pasien, judul_notifikasi, isi_notifikasi, jenis_notifikasi) VALUES ?',
         [values]
       );
     }
 
-    res.json({ message: `Notifikasi berhasil dikirim ke ${values.length} user` });
+    res.json({ message: `Notifikasi telah dikirim ke ${values.length} pasien` });
   } catch (error) {
     console.error('Send bulk notification error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
 
-// Dashboard Statistics
+// ==========================================
+// DASHBOARD STATISTICS
+// ==========================================
+
 export const getDashboardStats = async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
 
     const [totalPatients] = await pool.query(
-      'SELECT COUNT(*) as count FROM users WHERE role = "pasien"'
+      'SELECT COUNT(*) as count FROM pasien'
     );
 
     const [totalDoctors] = await pool.query(
-      'SELECT COUNT(*) as count FROM users WHERE role = "dokter"'
+      'SELECT COUNT(*) as count FROM dokter WHERE status_aktif = "Aktif"'
     );
 
     const [todayAppointments] = await pool.query(
-      'SELECT COUNT(*) as count FROM appointments WHERE appointment_date = ?',
+      'SELECT COUNT(*) as count FROM pendaftaran_online WHERE tanggal_pendaftaran = ?',
       [today]
     );
 
     const [todayQueue] = await pool.query(
-      'SELECT COUNT(*) as count FROM queue WHERE queue_date = ? AND status = "waiting"',
+      'SELECT COUNT(*) as count FROM nomor_antrian WHERE tanggal_antrian = ? AND status_antrian IN ("Menunggu", "Dipanggil")',
       [today]
     );
 
     const [recentAppointments] = await pool.query(
-      `SELECT a.*, 
-              p_patient.full_name as patient_name,
-              p_doctor.full_name as doctor_name
-       FROM appointments a
-       LEFT JOIN profiles p_patient ON a.patient_id = p_patient.user_id
-       LEFT JOIN profiles p_doctor ON a.doctor_id = p_doctor.user_id
-       ORDER BY a.created_at DESC
-       LIMIT 5`
+      `SELECT 
+        po.id_pendaftaran as id,
+        po.nama_pasien as patient_name,
+        po.tanggal_pendaftaran as appointment_date,
+        po.waktu_daftar as appointment_time,
+        po.status_pendaftaran as status,
+        d.nama_dokter as doctor_name,
+        d.spesialisasi,
+        po.created_at
+       FROM pendaftaran_online po
+       LEFT JOIN dokter d ON po.id_dokter = d.id_dokter
+       ORDER BY po.created_at DESC
+       LIMIT 10`
+    );
+
+    // Get dashboard summary if exists
+    const [dashboardData] = await pool.query(
+      'SELECT * FROM dashboard_klinik WHERE tanggal_laporan = ? ORDER BY created_at DESC LIMIT 1',
+      [today]
     );
 
     res.json({
@@ -399,12 +538,13 @@ export const getDashboardStats = async (req, res) => {
         totalPatients: totalPatients[0].count,
         totalDoctors: totalDoctors[0].count,
         todayAppointments: todayAppointments[0].count,
-        todayQueue: todayQueue[0].count
+        todayQueue: todayQueue[0].count,
+        dashboardSummary: dashboardData.length > 0 ? dashboardData[0] : null
       },
       recentAppointments
     });
   } catch (error) {
     console.error('Get dashboard stats error:', error);
-    res.status(500).json({ message: 'Terjadi kesalahan server' });
+    res.status(500).json({ message: 'Terjadi kesalahan, silakan coba lagi' });
   }
 };
