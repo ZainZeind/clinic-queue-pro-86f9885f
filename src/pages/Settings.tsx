@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
-import { User, Bell, Shield, Palette } from 'lucide-react';
+import { User, Bell, Shield } from 'lucide-react';
 
 export default function Settings() {
   const { user } = useAuth();
@@ -45,11 +45,7 @@ export default function Settings() {
                 </div>
                 <div className="space-y-2">
                   <Label>Nomor Telepon</Label>
-                  <Input placeholder="+62" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Role</Label>
-                  <Input value={user?.role || ''} disabled className="capitalize" />
+                  <Input placeholder="+62 812-3456-7890" />
                 </div>
               </div>
               <Button className="bg-gradient-primary">Simpan Perubahan</Button>
@@ -123,24 +119,7 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          {/* Appearance Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Palette className="w-5 h-5" />
-                Tampilan
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Mode Gelap</p>
-                  <p className="text-sm text-muted-foreground">Aktifkan tema gelap</p>
-                </div>
-                <Switch />
-              </div>
-            </CardContent>
-          </Card>
+
         </div>
       </div>
     </DashboardLayout>

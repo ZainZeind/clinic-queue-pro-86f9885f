@@ -12,7 +12,12 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   const getGreeting = () => {
-    const hour = new Date().getHours();
+    const jakartaTime = new Date().toLocaleString('en-US', { 
+      timeZone: 'Asia/Jakarta',
+      hour12: false,
+      hour: 'numeric'
+    });
+    const hour = parseInt(jakartaTime);
     if (hour < 11) return 'Selamat Pagi';
     if (hour < 15) return 'Selamat Siang';
     if (hour < 18) return 'Selamat Sore';
@@ -21,6 +26,7 @@ export default function AdminDashboard() {
 
   const getCurrentDate = () => {
     return new Date().toLocaleDateString('id-ID', { 
+      timeZone: 'Asia/Jakarta',
       weekday: 'long', 
       year: 'numeric', 
       month: 'long', 

@@ -89,7 +89,7 @@ const App = () => (
       path="/dashboard/admin/notifications"
       element={
         <ProtectedRoute allowedRoles={['admin']}>
-          <PatientDatabase />
+          <Notifications />
         </ProtectedRoute>
       }
     />
