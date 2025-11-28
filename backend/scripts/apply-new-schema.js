@@ -20,7 +20,11 @@ async function applySchema() {
       user: process.env.DB_USER || 'root',
       password: process.env.DB_PASSWORD || '',
       port: process.env.DB_PORT || 3306,
-      multipleStatements: true
+      multipleStatements: true,
+      ssl: {
+        rejectUnauthorized: false
+      },
+      connectTimeout: 20000
     });
 
     console.log('Connected successfully!');
